@@ -19,41 +19,60 @@
    - limitations under the License.
    -->
 
-<androidx.coordinatorlayout.widget.CoordinatorLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:tools="http://schemas.android.com/tools"
 	android:id="@+id/root_view"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto">
+
 	<com.google.android.material.appbar.AppBarLayout
+		android:id="@+id/appBarLayout"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content">
+
 		<com.google.android.material.appbar.MaterialToolbar
 			android:id="@+id/toolbar"
 			android:layout_width="match_parent"
 			android:layout_height="?attr/actionBarSize">
+
 			<androidx.appcompat.widget.SearchView
 				android:id="@+id/search_view"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
 				android:layout_gravity="end"
 				android:layout_marginEnd="@dimen/space_2"
-				android:iconifiedByDefault="true"/>
+				android:iconifiedByDefault="true" />
+
+			<ImageButton
+				android:id="@+id/scan_button"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_gravity="end"
+				android:src="@android:drawable/stat_sys_data_bluetooth"
+				tools:src="@android:drawable/stat_sys_data_bluetooth" />
+
 		</com.google.android.material.appbar.MaterialToolbar>
+
+
 	</com.google.android.material.appbar.AppBarLayout>
+
 	<androidx.core.widget.NestedScrollView
+		android:id="@+id/nested_scroll_view"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent"
+		android:layout_height="464dp"
 		app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
 		<TextView
 			android:id="@+id/empty_view"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:padding="8dp"
 			android:gravity="center"
-			android:visibility="gone"
-			android:text="@string/no_keys" />
+			android:padding="8dp"
+			android:text="@string/no_keys"
+			android:visibility="gone" />
 	</androidx.core.widget.NestedScrollView>
+
 	<androidx.recyclerview.widget.RecyclerView
 		android:id="@+id/token_list"
 		android:visibility="gone"
@@ -70,4 +89,16 @@
 		android:layout_margin="24dp"
 		android:contentDescription="@string/add_token"
 		app:srcCompat="@drawable/camera"/>
+
+	<androidx.recyclerview.widget.RecyclerView
+		android:id="@+id/scan_results_recycler_view"
+		android:layout_width="match_parent"
+		android:layout_height="207dp"
+		android:layout_marginTop="8dp"
+		app:layout_anchorGravity="bottom|clip_vertical"
+		app:layout_constraintBottom_toBottomOf="@id/nested_scroll_view"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toBottomOf="parent"
+		tools:listitem="@layout/row_scan_result" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -3,6 +3,7 @@ plugins {
     kotlin("android")
     kotlin("kapt")
     id("dagger.hilt.android.plugin")
+    id("org.jetbrains.kotlin.android.extensions")
 }
 
 android {
@@ -62,6 +63,7 @@ dependencies {
     implementation(libs.activityKtx)
     implementation(libs.bundles.kotlinxCoroutines)
     implementation(kotlin("stdlib-jdk8"))
+    implementation("androidx.recyclerview:recyclerview:1.1.0")
 
     implementation(libs.bundles.cameraX)
     implementation(libs.biometric)

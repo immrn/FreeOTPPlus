@@ -76,4 +76,5 @@
     <string name="launch_with_screenshot_enabled">Launch with screenshot enabled</string>
     <string name="token_details">Token details</string>
     <string name="share_to_other_apps">Share to other apps</string>
+    <string name="title_activity_ble_devices">BleDevicesActivity</string>
 </resources>

@@ -36,23 +36,37 @@
 
 package org.fedorahosted.freeotp.ui
 
+import android.Manifest
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.ParcelUuid
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
 import android.widget.SearchView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -61,20 +75,27 @@ import androidx.recyclerview.widget.RecyclerView.AdapterDataObserver
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.fedorahosted.freeotp.R
 import org.fedorahosted.freeotp.data.MigrationUtil
 import org.fedorahosted.freeotp.data.OtpTokenDatabase
 import org.fedorahosted.freeotp.data.OtpTokenFactory
-import org.fedorahosted.freeotp.databinding.MainBinding
 import org.fedorahosted.freeotp.data.legacy.ImportExportUtil
+import org.fedorahosted.freeotp.databinding.MainBinding
 import org.fedorahosted.freeotp.util.Settings
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import kotlin.math.max
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
+
+
+private const val ENABLE_BLUETOOTH_REQUEST_CODE = 1
+private const val RUNTIME_PERMISSION_REQUEST_CODE = 2
+private const val BETTER_TOTP_UUID = "17fce299-6810-4ddd-b809-ac46c9100f51"
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -98,6 +119,170 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val dateFormatter : DateFormat = SimpleDateFormat("yyyyMMdd_HHmm")
+
+    // Bluetooth Low Energy related:
+    private val bleScanner by lazy {
+        bluetoothAdapter.bluetoothLeScanner
+    }
+    private val bluetoothAdapter: BluetoothAdapter by lazy {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager.adapter
+    }
+    val filter = ScanFilter.Builder().setServiceUuid(
+        ParcelUuid.fromString(BETTER_TOTP_UUID.toString())
+    ).build()
+    private val scanSettings = ScanSettings.Builder()
+        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+        .build()
+    private val scanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            val indexQuery = scanResults.indexOfFirst { it.device.address == result.device.address }
+            if (indexQuery != -1) { // A scan result already exists with the same address
+                scanResults[indexQuery] = result
+                scanResultAdapter.notifyItemChanged(indexQuery)
+            } else {
+                with(result.device) {
+                    Log.i("ScanCallback", "Found BLE device! Name: ${name ?: "Unnamed"}, address: $address")
+                }
+                scanResults.add(result)
+                scanResultAdapter.notifyItemInserted(scanResults.size - 1)
+            }
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            Log.e("ScanCallback", "onScanFailed: code $errorCode")
+        }
+    }
+    private var isScanning = false
+        set(value) {
+            field = value
+            runOnUiThread { findViewById<ImageButton>(R.id.scan_button).setImageResource(if (value) R.drawable.token_image_apple else R.drawable.token_image_adobe)  }
+        }
+    private val scanResults = mutableListOf<ScanResult>()
+    private val scanResultAdapter: ScanResultAdapter by lazy {
+        ScanResultAdapter(scanResults) {
+            // TODO: Implement
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!bluetoothAdapter.isEnabled) {
+            promptEnableBluetooth()
+        }
+    }
+
+    private fun promptEnableBluetooth() {
+        if (!bluetoothAdapter.isEnabled) {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            startActivityForResult(enableBtIntent, ENABLE_BLUETOOTH_REQUEST_CODE)
+        }
+    }
+
+    private fun startBleScan() {
+        if (!hasRequiredRuntimePermissions()) {
+            requestRelevantRuntimePermissions()
+        } else {
+            scanResults.clear()
+            scanResultAdapter.notifyDataSetChanged()
+            bleScanner.startScan(null, scanSettings, scanCallback)
+            isScanning = true
+        }
+    }
+
+    private fun stopBleScan() {
+        bleScanner.stopScan(scanCallback)
+        isScanning = false
+    }
+
+    private fun Activity.requestRelevantRuntimePermissions() {
+        if (hasRequiredRuntimePermissions()) { return }
+        when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> {
+                requestLocationPermission()
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                requestBluetoothPermissions()
+            }
+        }
+    }
+
+    private fun requestLocationPermission() {
+        runOnUiThread {
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Location permission required")
+                .setMessage("Starting from Android M (6.0), the system requires apps to be granted " +
+                        "location access in order to scan for BLE devices.")
+                .setPositiveButton(android.R.string.ok,
+                    DialogInterface.OnClickListener { dialog, which ->
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                            RUNTIME_PERMISSION_REQUEST_CODE
+                        )
+                    }
+                )
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show()
+        }
+    }
+    private fun requestBluetoothPermissions() {
+        runOnUiThread {
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Bluetooth permissions required")
+                .setMessage("Starting from Android 12, the system requires apps to be granted " +
+                        "Bluetooth access in order to scan for and connect to BLE devices.")
+                .setPositiveButton(android.R.string.ok,
+                    DialogInterface.OnClickListener { dialog, which ->
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(
+                                Manifest.permission.BLUETOOTH_SCAN,
+                                Manifest.permission.BLUETOOTH_CONNECT
+                            ),
+                            RUNTIME_PERMISSION_REQUEST_CODE
+                        )
+                    }
+                )
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            RUNTIME_PERMISSION_REQUEST_CODE -> {
+                val containsPermanentDenial = permissions.zip(grantResults.toTypedArray()).any {
+                    it.second == PackageManager.PERMISSION_DENIED &&
+                            !ActivityCompat.shouldShowRequestPermissionRationale(this, it.first)
+                }
+                val containsDenial = grantResults.any { it == PackageManager.PERMISSION_DENIED }
+                val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                when {
+                    containsPermanentDenial -> {
+                        // TODO: Handle permanent denial (e.g., show AlertDialog with justification)
+                        // Note: The user will need to navigate to App Settings and manually grant
+                        // permissions that were permanently denied
+                    }
+                    containsDenial -> {
+                        requestRelevantRuntimePermissions()
+                    }
+                    allGranted && hasRequiredRuntimePermissions() -> {
+                        startBleScan()
+                    }
+                    else -> {
+                        // Unexpected scenario encountered when handling permissions
+                        recreate()
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -159,6 +344,14 @@ class MainActivity : AppCompatActivity() {
 
         })
 
+        binding.scanButton.setOnClickListener {
+            if (isScanning) {
+                stopBleScan()
+            } else {
+                startBleScan()
+            }
+        }
+
         binding.addTokenFab.setOnClickListener {
             startActivity(Intent(this, ScanTokenActivity::class.java))
         }
@@ -171,6 +364,25 @@ class MainActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_SECURE,
                 WindowManager.LayoutParams.FLAG_SECURE
             )
+        }
+
+        setupRecyclerView()
+    }
+
+    private fun setupRecyclerView() {
+        binding.scanResultsRecyclerView.apply {
+            adapter = scanResultAdapter
+            layoutManager = LinearLayoutManager(
+                this@MainActivity,
+                RecyclerView.VERTICAL,
+                false
+            )
+            isNestedScrollingEnabled = false
+        }
+
+        val animator = binding.scanResultsRecyclerView.itemAnimator
+        if (animator is SimpleItemAnimator) {
+            animator.supportsChangeAnimations = false
         }
     }
 
@@ -296,9 +508,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun Context.hasPermission(permissionType: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permissionType) ==
+                PackageManager.PERMISSION_GRANTED
+    }
+    fun Context.hasRequiredRuntimePermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_SCAN) &&
+                    hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     public override fun onActivityResult(requestCode: Int, resultCode: Int,
                                          resultData: Intent?) {
         super.onActivityResult(requestCode, resultCode, resultData)
+
+        // TODO MRN maybe put this in the when statement below
+        when (requestCode) {
+            ENABLE_BLUETOOTH_REQUEST_CODE -> {
+                if (resultCode != Activity.RESULT_OK) {
+                    promptEnableBluetooth()
+                }
+            }
+        }
 
         if (resultCode != Activity.RESULT_OK) {
             return
