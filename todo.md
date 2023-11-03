@@ -1,0 +1,5 @@
+- [ ] BLE GATT Funktionalität
+- [ ] In App Security (z.B. kann Nutzer sich nie das TOTP in der App anzeigen lassen)
+- [ ] Fallback (extra QR Code scannen) implementieren
+- [ ] Kommunikations-Security implementieren
+- [ ] UI Design / Flow

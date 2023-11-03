@@ -1,10 +1,12 @@
 package org.fedorahosted.freeotp.ui
 
 import android.bluetooth.le.ScanResult
+import android.os.Build
 import android.view.View
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.android.synthetic.main.row_scan_result.view.device_alias
 import org.fedorahosted.freeotp.databinding.RowScanResultBinding
 import org.fedorahosted.freeotp.R
 import kotlinx.android.synthetic.main.row_scan_result.view.device_name

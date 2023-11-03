@@ -93,9 +93,10 @@
 	<androidx.recyclerview.widget.RecyclerView
 		android:id="@+id/scan_results_recycler_view"
 		android:layout_width="match_parent"
-		android:layout_height="207dp"
+		android:layout_height="453dp"
 		android:layout_marginTop="8dp"
-		app:layout_anchorGravity="bottom|clip_vertical"
+		app:layout_anchor="@+id/nested_scroll_view"
+		app:layout_anchorGravity="center"
 		app:layout_constraintBottom_toBottomOf="@id/nested_scroll_view"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toStartOf="parent"

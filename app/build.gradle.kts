@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.bundles.kotlinxCoroutines)
     implementation(kotlin("stdlib-jdk8"))
     implementation("androidx.recyclerview:recyclerview:1.1.0")
+    implementation("com.jakewharton.timber:timber:4.7.1")
 
     implementation(libs.bundles.cameraX)
     implementation(libs.biometric)
